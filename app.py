@@ -167,13 +167,45 @@ with tab1:
         st.download_button("📥 Download PDF", pdf, f"{awb_no}_{ref_no}.pdf")
 
 with tab2:
-    st.info("💡 CSV లేదా Excel ఫైల్‌ను అప్‌లోడ్ చేయండి. కాలమ్స్ కరెక్ట్‌గా ఉండేలా చూసుకోండి.")
+    st.info("💡 CSV లేదా Excel ఫైల్‌ను అప్‌లోడ్ చేయండి.")
     
-    # --- బల్క్ అప్‌లోడ్ సెక్షన్ లో మార్పులు ---
+    # --- SAMPLE FILE DOWNLOAD SECTION ---
+    sample_data = {
+        'awb': ['VV1001', 'VV1002'], 
+        'product_name': ['General', 'Electronics'], 
+        'product_value': ['1000', '5000'],
+        'label_date': [datetime.now().strftime("%d-%m-%Y"), datetime.now().strftime("%d-%m-%Y")], 
+        'ref': ['REF01', 'REF02'], 
+        'weight': ['0.5', '1.2'],
+        'total_amount': ['1100', '5200'], 
+        'to_name': ['Rahul', 'Suresh'], 
+        'to_phone': ['9876543210', '9999999999'],
+        'to_pincode': ['500001', '520001'], 
+        'to_address': ['Hyderabad', 'Vijayawada'], 
+        'from_name': ['Vayu Vega Hub', 'Vayu Vega Hub'],
+        'from_phone': ['8888888888', '8888888888'], 
+        'from_address': ['Hub Main Road', 'Hub Main Road'],
+        'mode': ['Surface', 'Express'], 
+        'risk': ['Carrier', 'No Risk']
+    }
+    sample_df = pd.DataFrame(sample_data)
+    
+    col_s1, col_s2 = st.columns(2)
+    with col_s1:
+        csv_data = sample_df.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Download Sample CSV", data=csv_data, file_name="vayu_vega_sample.csv", mime="text/csv")
+    with col_s2:
+        output_xlsx = io.BytesIO()
+        with pd.ExcelWriter(output_xlsx, engine='openpyxl') as writer:
+            sample_df.to_excel(writer, index=False)
+        st.download_button("📥 Download Sample Excel", data=output_xlsx.getvalue(), file_name="vayu_vega_sample.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    st.markdown("---")
+    
+    # --- BULK UPLOAD SECTION ---
     uploaded_file = st.file_uploader("Upload Your CSV or Excel File", type=['csv', 'xlsx'])
     
     if uploaded_file:
-        # ఫైల్ టైప్ ని బట్టి రీడ్ చేయడం
         if uploaded_file.name.endswith('.csv'):
             df = pd.read_csv(uploaded_file)
         else:
@@ -192,7 +224,6 @@ with tab2:
                     l_dict = row.to_dict()
                     single_pdf = generate_vayu_vega_label(l_dict, logo_bytes, show_logo, folder_logo_path)
                     
-                    # ఫైల్ నేమ్ AWB + REF తో
                     f_name = f"{l_dict.get('awb', idx)}_{l_dict.get('ref', 'REF')}.pdf"
                     zip_file.writestr(f_name, single_pdf.getvalue())
                     
