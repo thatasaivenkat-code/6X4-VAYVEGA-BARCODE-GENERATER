@@ -16,7 +16,7 @@ if not os.path.exists(LOGO_FOLDER):
     os.makedirs(LOGO_FOLDER)
 
 # --- 2. PDF GENERATION FUNCTION ---
-def generate_vayu_vega_label(data, uploaded_logo_bytes, show_fixed_logo, selected_folder_logo_path, canvas_obj=None):
+def generate_vayu_vega_label(data, uploaded_logo_bytes, show_fixed_logo, selected_folder_logo_path, options, canvas_obj=None):
     is_bulk = canvas_obj is not None
     if not is_bulk:
         buffer = io.BytesIO()
@@ -73,9 +73,11 @@ def generate_vayu_vega_label(data, uploaded_logo_bytes, show_fixed_logo, selecte
     max_ship_w = 1.9 * inch
     ship_y = 3.9 * inch
 
+    to_phone = data.get('to_phone','') if options['show_mobile'] else "0000000000"
+    
     ship_y = draw_wrapped_text(c, "SHIP TO:", ship_x, ship_y, max_ship_w, "Helvetica", 9, bold=True)
     ship_y = draw_wrapped_text(c, f"NAME: {data.get('to_name','')}", ship_x + 0.05 * inch, ship_y, max_ship_w, "Helvetica", 8, bold=True)
-    ship_y = draw_wrapped_text(c, f"PH: {data.get('to_phone','')}", ship_x + 0.05 * inch, ship_y, max_ship_w, "Helvetica", 8, bold=True)
+    ship_y = draw_wrapped_text(c, f"PH: {to_phone}", ship_x + 0.05 * inch, ship_y, max_ship_w, "Helvetica", 8, bold=True)
     draw_wrapped_text(c, data.get('to_address',''), ship_x + 0.05 * inch, ship_y, max_ship_w, "Helvetica", 6)
     
     pincode_x = 2.7 * inch
@@ -86,10 +88,12 @@ def generate_vayu_vega_label(data, uploaded_logo_bytes, show_fixed_logo, selecte
     max_from_w = 3.85 * inch - from_x_start - 0.1 * inch
     curr_y_from = 3.9 * inch
 
-    curr_y_from = draw_wrapped_text(c, "FROM:", from_x_start, curr_y_from, max_from_w, "Helvetica", 9, bold=True, align="right")
-    curr_y_from = draw_wrapped_text(c, f"NAME: {data.get('from_name','')}", from_x_start, curr_y_from, max_from_w, "Helvetica", 8, bold=True, align="right")
-    curr_y_from = draw_wrapped_text(c, f"PH: {data.get('from_phone','')}", from_x_start, curr_y_from, max_from_w, "Helvetica", 8, bold=True, align="right")
-    draw_wrapped_text(c, data.get('from_address',''), from_x_start, curr_y_from, max_from_w, "Helvetica", 6, align="right")
+    if options['show_from']:
+        from_phone = data.get('from_phone','') if options['show_mobile'] else "0000000000"
+        curr_y_from = draw_wrapped_text(c, "FROM:", from_x_start, curr_y_from, max_from_w, "Helvetica", 9, bold=True, align="right")
+        curr_y_from = draw_wrapped_text(c, f"NAME: {data.get('from_name','')}", from_x_start, curr_y_from, max_from_w, "Helvetica", 8, bold=True, align="right")
+        curr_y_from = draw_wrapped_text(c, f"PH: {from_phone}", from_x_start, curr_y_from, max_from_w, "Helvetica", 8, bold=True, align="right")
+        draw_wrapped_text(c, data.get('from_address',''), from_x_start, curr_y_from, max_from_w, "Helvetica", 6, align="right")
 
     c.line(0.15 * inch, 2.5 * inch, 3.85 * inch, 2.5 * inch)
     c.setFont("Helvetica-Bold", 10); c.drawCentredString(2.0 * inch, 2.35 * inch, f"PRODUCT: {data.get('product_name','')}")
@@ -98,7 +102,8 @@ def generate_vayu_vega_label(data, uploaded_logo_bytes, show_fixed_logo, selecte
 
     c.rect(0.2 * inch, 1.4 * inch, 3.6 * inch, 0.4 * inch)
     c.setFont("Helvetica-Bold", 10); c.drawString(0.3 * inch, 1.55 * inch, f"WT: {data.get('weight','')} KG")
-    c.drawRightString(3.7 * inch, 1.55 * inch, f"TOTAL: Rs.{data.get('total_amount','')}")
+    if options['show_amount']:
+        c.drawRightString(3.7 * inch, 1.55 * inch, f"TOTAL: Rs.{data.get('total_amount','')}")
 
     ref = str(data.get('ref', 'REF'))
     ref_bar = code128.Code128(ref, barHeight=0.4 * inch, barWidth=1.0)
@@ -124,15 +129,36 @@ def generate_vayu_vega_label(data, uploaded_logo_bytes, show_fixed_logo, selecte
 st.set_page_config(page_title="Vayu Vega Ultra Pro", layout="wide")
 st.title("🚀 Vayu Vega Ultra Pro - V30")
 
+# --- SIDEBAR SETTINGS ---
 st.sidebar.header("⚙️ Settings")
 show_logo = st.sidebar.checkbox("Show Fixed Logo (logo.png)", value=True)
 uploaded_logo = st.sidebar.file_uploader("Upload Temporary Logo", type=['png', 'jpg'])
 
+# NEW: BROWSER LOGO PREVIEW
+if uploaded_logo:
+    st.sidebar.image(uploaded_logo, caption="Uploaded Logo Preview", use_container_width=True)
+
+st.sidebar.markdown("---")
+st.sidebar.header("👁️ Visibility Controls")
+opt_amount = st.sidebar.toggle("Show Total Amount", value=True)
+opt_mobile = st.sidebar.toggle("Show Mobile Numbers", value=True)
+opt_from = st.sidebar.toggle("Show Sender (FROM) Details", value=True)
+
+display_options = {
+    'show_amount': opt_amount,
+    'show_mobile': opt_mobile,
+    'show_from': opt_from
+}
+
 st.sidebar.markdown("---")
 st.sidebar.header("📁 Folder Logos")
 logo_files = [f for f in os.listdir(LOGO_FOLDER) if f.lower().endswith(('.png', '.jpg', '.jpeg'))] if os.path.exists(LOGO_FOLDER) else []
-selected_logo_name = st.sidebar.selectbox("Select Branch Logo from Folder", ["None"] + logo_files)
+selected_logo_name = st.sidebar.selectbox("Select Branch Logo", ["None"] + logo_files)
 folder_logo_path = os.path.join(LOGO_FOLDER, selected_logo_name) if selected_logo_name != "None" else None
+
+# FOLDER LOGO PREVIEW
+if folder_logo_path:
+    st.sidebar.image(folder_logo_path, caption="Folder Logo Preview", use_container_width=True)
 
 tab1, tab2 = st.tabs(["📄 Single Label", "📂 Bulk Upload"])
 
@@ -163,12 +189,12 @@ with tab1:
             'from_name': f_name, 'from_phone': f_phone, 'from_address': f_addr,
             'mode': mode_opt, 'risk': risk_opt
         }
-        pdf = generate_vayu_vega_label(l_data, uploaded_logo.getvalue() if uploaded_logo else None, show_logo, folder_logo_path)
+        pdf = generate_vayu_vega_label(l_data, uploaded_logo.getvalue() if uploaded_logo else None, show_logo, folder_logo_path, display_options)
         st.download_button("📥 Download PDF", pdf, f"{awb_no}_{ref_no}.pdf")
 
 with tab2:
-    st.info("💡 CSV లేదా Excel ఫైల్‌ను అప్‌లోడ్ చేయండి.")
-    
+    st.info("💡 CSV లేదా Excel ఫైల్‌ను అప్‌లోడ్ చేసి, కావాల్సిన Rows సెలెక్ట్ చేసుకోండి.")
+
     # --- SAMPLE FILE DOWNLOAD SECTION ---
     sample_data = {
         'awb': ['VV1001', 'VV1002'], 
@@ -202,7 +228,6 @@ with tab2:
 
     st.markdown("---")
     
-    # --- BULK UPLOAD SECTION ---
     uploaded_file = st.file_uploader("Upload Your CSV or Excel File", type=['csv', 'xlsx'])
     
     if uploaded_file:
@@ -211,26 +236,39 @@ with tab2:
         else:
             df = pd.read_excel(uploaded_file)
             
-        st.write("Preview:", df.head())
-        
-        if st.button("Generate All Labels"):
-            logo_bytes = uploaded_logo.getvalue() if uploaded_logo else None
-            zip_buffer = io.BytesIO()
-            bulk_pdf_buffer = io.BytesIO()
-            bulk_c = canvas.Canvas(bulk_pdf_buffer, pagesize=(4 * inch, 6 * inch))
-
-            with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
-                for idx, row in df.iterrows():
-                    l_dict = row.to_dict()
-                    single_pdf = generate_vayu_vega_label(l_dict, logo_bytes, show_logo, folder_logo_path)
-                    
-                    f_name = f"{l_dict.get('awb', idx)}_{l_dict.get('ref', 'REF')}.pdf"
-                    zip_file.writestr(f_name, single_pdf.getvalue())
-                    
-                    generate_vayu_vega_label(l_dict, logo_bytes, show_logo, folder_logo_path, canvas_obj=bulk_c)
+        st.write("### Select Labels to Generate")
+        if "Select" not in df.columns:
+            df.insert(0, "Select", True)
             
-            bulk_c.save()
-            bulk_pdf_buffer.seek(0)
-            st.success("Labels Generated Successfully!")
-            st.download_button("📥 Download ZIP (Individual PDFs)", zip_buffer.getvalue(), "Bulk_Labels.zip")
-            st.download_button("📥 Download Combined PDF (All Labels)", bulk_pdf_buffer, "All_Labels_Combined.pdf")
+        edited_df = st.data_editor(df, hide_index=True, use_container_width=True)
+        selected_rows = edited_df[edited_df["Select"] == True]
+        
+        if st.button(f"Generate Labels for {len(selected_rows)} Selected Rows"):
+            if len(selected_rows) == 0:
+                st.error("Please select at least one row!")
+            else:
+                logo_bytes = uploaded_logo.getvalue() if uploaded_logo else None
+                zip_buffer = io.BytesIO()
+                bulk_pdf_buffer = io.BytesIO()
+                bulk_c = canvas.Canvas(bulk_pdf_buffer, pagesize=(4 * inch, 6 * inch))
+
+                with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+                    for idx, row in selected_rows.iterrows():
+                        l_dict = row.to_dict()
+                        l_dict.pop('Select', None)
+                        
+                        single_pdf = generate_vayu_vega_label(l_dict, logo_bytes, show_logo, folder_logo_path, display_options)
+                        
+                        f_name = f"{l_dict.get('awb', idx)}_{l_dict.get('ref', 'REF')}.pdf"
+                        zip_file.writestr(f_name, single_pdf.getvalue())
+                        
+                        generate_vayu_vega_label(l_dict, logo_bytes, show_logo, folder_logo_path, display_options, canvas_obj=bulk_c)
+                
+                bulk_c.save()
+                bulk_pdf_buffer.seek(0)
+                st.success("Labels Generated Successfully!")
+                col_d1, col_d2 = st.columns(2)
+                with col_d1:
+                    st.download_button("📥 Download ZIP (Individual)", zip_buffer.getvalue(), "Selected_Labels.zip")
+                with col_d2:
+                    st.download_button("📥 Download Combined PDF", bulk_pdf_buffer, "Selected_Labels_Combined.pdf")
